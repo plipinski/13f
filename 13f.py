@@ -40,7 +40,7 @@ def retrieve_data_from_url(url, filing_date):
     content = response.text
 
     # Find all <table>...</table> blocks, skipping the first one
-    table_blocks = re.findall(r'<TABLE>(?:(?!</TABLE>).)*?Column(?:(?!</TABLE>).)*?</TABLE>', content, re.DOTALL | re.IGNORECASE)
+    table_blocks = re.findall(r'<TABLE>(?:(?!</TABLE>).)*?CUSIP(?:(?!</TABLE>).)*?</TABLE>', content, re.DOTALL | re.IGNORECASE)
 
     if not table_blocks:
         return pd.DataFrame()
@@ -61,11 +61,7 @@ def retrieve_data_from_url(url, filing_date):
         # Parse all lines into a dataframe
         parsed_data = [parse_fixed_width(row, column_widths) + [datetime.fromisoformat(filing_date).date()]  for row in lines]
         df = pd.DataFrame(parsed_data)
-        try:
-            df = df.drop(df.columns[[0,5,6,7,8,9,10]], axis=1)
-            data = pd.concat([data, df], ignore_index=True)
-        except IndexError:
-            return pd.DataFrame()
+        data = pd.concat([data, df], ignore_index=True)
 
     for i in range(1, len(data)):
         if pd.isna(data.iloc[i, 1]) or data.iloc[i, 1] == "":
@@ -105,6 +101,7 @@ for url in txt_links:
         all_dfs.append(data)
 
 merged_df = pd.concat(all_dfs, ignore_index=True)
+merged_df = merged_df.drop(merged_df.columns[[0,5,6,7,8,10,11,12,13]], axis=1)
 merged_df.to_csv("all_data.csv", index=False)
 
 
