@@ -2,6 +2,7 @@ import pandas as pd
 import requests
 import re
 import json
+from datetime import datetime
 from pathlib import Path
 
 def remove_until_s(lines):
@@ -25,7 +26,16 @@ def get_all_txt_links():
 
     return [(filing['filedAt'], filing['linkToTxt']) for filing in data.get('filings', []) if 'linkToTxt' in filing]
 
-def retrieve_data_from_url(url):
+def get_column_widths(block):
+    positions = []
+    for match in re.finditer(r"<[SC]>", block):
+        positions.append(match.start())
+
+    # Sort and compute distances (i.e., column widths)
+    positions.sort()
+    return [positions[i + 1] - positions[i] for i in range(len(positions) - 1)]
+
+def retrieve_data_from_url(url, filing_date):
     response = requests.get(url, headers=headers)
     content = response.text
 
@@ -35,54 +45,33 @@ def retrieve_data_from_url(url):
     if not table_blocks:
         return pd.DataFrame()
 
+    data = pd.DataFrame()
     # Process each table block
     processed_rows = []
     for i, table in enumerate(table_blocks):
         lines = table.strip().splitlines()
         lines = remove_until_s(lines)
-        # Skip the first 9 lines and the last 3 (or 5 if last table)
-        if i == len(table_blocks) - 1:
-            trimmed_lines = lines[:-6]
-        else:
-            trimmed_lines = lines[:-4]
-        processed_rows.extend(trimmed_lines)
+        for i, line in enumerate(lines):
+            if '---' in line:
+                lines = lines[:i]  # keep everything before this line
+                break
 
+        column_widths = get_column_widths(table)
 
-    block = table_blocks[0]
-    positions = []
-    for match in re.finditer(r"<[SC]>", block):
-        positions.append(match.start())
+        # Parse all lines into a dataframe
+        parsed_data = [parse_fixed_width(row, column_widths) + [datetime.fromisoformat(filing_date).date()]  for row in lines]
+        df = pd.DataFrame(parsed_data)
+        df = df.drop(df.columns[[0,5,6,7,8,9,10]], axis=1)
+        data = pd.concat([data, df], ignore_index=True)
 
-    # Sort and compute distances (i.e., column widths)
-    positions.sort()
-    column_widths = [positions[i + 1] - positions[i] for i in range(len(positions) - 1)]
+    for i in range(1, len(data)):
+        if pd.isna(data.iloc[i, 1]) or data.iloc[i, 1] == "":
+            data.iloc[i, 0:2] = data.iloc[i-1, 0:2]
 
+    mask = ~data.apply(lambda row: row.astype(str).str.contains('---|===')).any(axis=1) & data.iloc[:, 3].fillna('').astype(str).str.strip().ne('')
+    data = data[mask]
 
-    # Parse all lines into a dataframe
-    parsed_data = [parse_fixed_width(row, column_widths) for row in processed_rows]
-    df = pd.DataFrame(parsed_data)
-
-    # Merge rows where first column is non-empty and second is empty
-    merged_rows = []
-    i = 0
-    while i < len(df):
-        row = df.iloc[i].copy()
-        while row[0] and not row[1] and i + 1 < len(df):
-            i += 1
-            next_row = df.iloc[i]
-            row[0] += ' ' + next_row[0]
-            row[1:] = next_row[1:]
-        merged_rows.append(row)
-        i += 1
-
-    df = pd.DataFrame(merged_rows)
-
-    # Fill down first three columns if first column is empty
-    for i in range(1, len(df)):
-        if not df.iloc[i, 0]:
-            df.iloc[i, 0:3] = df.iloc[i-1, 0:3]
-
-    return df
+    return data
 
 # Convert specified columns to integers
 #int_columns = [3, 4, 9, 10, 11]
@@ -105,11 +94,16 @@ headers = {
 
 txt_links = get_all_txt_links()
 
+all_dfs = []
 for url in txt_links:
-    data = retrieve_data_from_url(url[1])
+    data = retrieve_data_from_url(url[1], url[0])
     if not data.empty:
         print(url[0] + '    ' + url[1])
         print(data)
+        all_dfs.append(data)
+
+merged_df = pd.concat(all_dfs, ignore_index=True)
+merged_df.to_csv("all_data.csv", index=False)
 
 
 
