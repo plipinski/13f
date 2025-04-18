@@ -61,8 +61,11 @@ def retrieve_data_from_url(url, filing_date):
         # Parse all lines into a dataframe
         parsed_data = [parse_fixed_width(row, column_widths) + [datetime.fromisoformat(filing_date).date()]  for row in lines]
         df = pd.DataFrame(parsed_data)
-        df = df.drop(df.columns[[0,5,6,7,8,9,10]], axis=1)
-        data = pd.concat([data, df], ignore_index=True)
+        try:
+            df = df.drop(df.columns[[0,5,6,7,8,9,10]], axis=1)
+            data = pd.concat([data, df], ignore_index=True)
+        except IndexError:
+            return pd.DataFrame()
 
     for i in range(1, len(data)):
         if pd.isna(data.iloc[i, 1]) or data.iloc[i, 1] == "":
@@ -99,7 +102,6 @@ for url in txt_links:
     data = retrieve_data_from_url(url[1], url[0])
     if not data.empty:
         print(url[0] + '    ' + url[1])
-        print(data)
         all_dfs.append(data)
 
 merged_df = pd.concat(all_dfs, ignore_index=True)
