@@ -4,6 +4,16 @@ import re
 import json
 from datetime import datetime
 from pathlib import Path
+import csv
+
+cusip = {}
+
+with open('cusip.csv', newline='') as f:
+    reader = csv.reader(f)
+    for row in reader:
+        if len(row) >= 2:  # make sure there's at least two columns
+            cusip[row[1]] = row[0]
+
 
 def remove_until_s(lines):
     for i, line in enumerate(lines):
@@ -35,10 +45,16 @@ def get_column_widths(block):
     positions.sort()
     return [positions[i + 1] - positions[i] for i in range(len(positions) - 1)]
 
+def get_company_name(cusip_id):
+    if cusip_id in cusip:
+        return int(float(cusip[cusip_id]))
+    return ""
+
+
 def retrieve_data_from_url(url, filing_date):
     response = requests.get(url, headers=headers)
     content = response.text
-
+    
     # Find all <table>...</table> blocks, skipping the first one
     table_blocks = re.findall(r'<TABLE>(?:(?!</TABLE>).)*?CUSIP(?:(?!</TABLE>).)*?</TABLE>', content, re.DOTALL | re.IGNORECASE)
 
@@ -59,24 +75,24 @@ def retrieve_data_from_url(url, filing_date):
         column_widths = get_column_widths(table)
 
         # Parse all lines into a dataframe
-        parsed_data = [parse_fixed_width(row, column_widths) + [datetime.fromisoformat(filing_date).date()]  for row in lines]
+        parsed_data = [parse_fixed_width(row, column_widths) for row in lines]
         df = pd.DataFrame(parsed_data)
         data = pd.concat([data, df], ignore_index=True)
 
     for i in range(1, len(data)):
-        if pd.isna(data.iloc[i, 1]) or data.iloc[i, 1] == "":
-            data.iloc[i, 0:2] = data.iloc[i-1, 0:2]
+        if data.iloc[i, 2].strip() == "":
+            data.iloc[i, 1] = data.iloc[i-1, 1]
+            data.iloc[i, 2] = data.iloc[i-1, 2]
 
     mask = ~data.apply(lambda row: row.astype(str).str.contains('---|===')).any(axis=1) & data.iloc[:, 3].fillna('').astype(str).str.strip().ne('')
     data = data[mask]
 
-    return data
-
-# Convert specified columns to integers
-#int_columns = [3, 4, 9, 10, 11]
-#for col in int_columns:
-#    df[col] = df[col].replace('', '0').str.replace(',', '').astype(int)
-
+    try:
+        data = data.iloc[:, [1,2,3,4]]
+        data['filingAt'] = filing_date;
+        return data
+    except:
+        return pd.DataFrame()
 
 # MAIN
 
@@ -101,7 +117,10 @@ for url in txt_links:
         all_dfs.append(data)
 
 merged_df = pd.concat(all_dfs, ignore_index=True)
-merged_df = merged_df.drop(merged_df.columns[[0,5,6,7,8,10,11,12,13]], axis=1)
+
+for i in range(len(merged_df)):
+    merged_df.at[i, 'company'] = get_company_name(merged_df.iloc[i][2])
+
 merged_df.to_csv("all_data.csv", index=False)
 
 
