@@ -88,8 +88,8 @@ def retrieve_data_from_url(url, filing_date):
     data = data[mask]
 
     try:
-        data = data.iloc[:, [1,2,3,4]]
-        data['filingAt'] = filing_date;
+        data = data.iloc[:, [2,3,4]]
+        data['filingAt'] = datetime.fromisoformat(filing_date).date();
         return data
     except:
         return pd.DataFrame()
@@ -117,10 +117,9 @@ for url in txt_links:
         all_dfs.append(data)
 
 merged_df = pd.concat(all_dfs, ignore_index=True)
-
-for i in range(len(merged_df)):
-    merged_df.at[i, 'company'] = get_company_name(merged_df.iloc[i][2])
-
+merged_df.columns.values[0] = 'cik'
+merged_df.columns.values[1] = 'valuation'
+merged_df.columns.values[2] = 'shares'
 merged_df.to_csv("all_data.csv", index=False)
 
 
