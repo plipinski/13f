@@ -34,7 +34,7 @@ def get_all_txt_links():
     with open('index.json', 'r') as f:
         data = json.load(f)
 
-    return [(filing['filedAt'], filing['linkToTxt']) for filing in data.get('filings', []) if 'linkToTxt' in filing]
+    return [(filing['periodOfReport'], filing['linkToTxt']) for filing in data.get('filings', []) if 'linkToTxt' in filing]
 
 def get_column_widths(block):
     positions = []
@@ -89,7 +89,7 @@ def retrieve_data_from_url(url, filing_date):
 
     try:
         data = data.iloc[:, [2,3,4]]
-        data['filingAt'] = datetime.fromisoformat(filing_date).date();
+        data['filedFor'] = datetime.fromisoformat(filing_date).date();
         return data
     except:
         return pd.DataFrame()
