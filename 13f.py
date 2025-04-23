@@ -120,6 +120,10 @@ merged_df = pd.concat(all_dfs, ignore_index=True)
 merged_df.columns.values[0] = 'cik'
 merged_df.columns.values[1] = 'valuation'
 merged_df.columns.values[2] = 'shares'
+
+for i in len(merged_df):
+     merged_df.at[i, 'cik'] = get_company_name(merged_df.iloc[i]['cik'])
+
 merged_df.to_csv("all_data.csv", index=False)
 
 
