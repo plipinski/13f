@@ -35,7 +35,12 @@ def get_all_txt_links():
     with open('index.json', 'r') as f:
         data = json.load(f)
 
-    return [(filing['periodOfReport'], filing['linkToTxt']) for filing in data.get('filings', []) if 'linkToTxt' in filing]
+    return [
+        (filing['periodOfReport'], filing['linkToTxt'])
+        for filing in data.get('filings', [])
+        if 'linkToTxt' in filing and filing.get('formType') == '13F-HR'
+    ]
+#    return [(filing['periodOfReport'], filing['linkToTxt']) for filing in data.get('filings', []) if 'linkToTxt' in filing]
 
 def get_column_widths(block):
     positions = []
@@ -57,7 +62,7 @@ def retrieve_data_from_url(url, filing_date):
     content = response.text
     
     # Find all <table>...</table> blocks, skipping the first one
-    table_blocks = re.findall(r'<TABLE>(?:(?!</TABLE>).)*?CUSIP(?:(?!</TABLE>).)*?</TABLE>', content, re.DOTALL | re.IGNORECASE)
+    table_blocks = re.findall(r'<TABLE>(?:(?!</TABLE>).)*?(?:<C>.*?){5,}.*?</TABLE>', content, re.DOTALL | re.IGNORECASE)
 
     if not table_blocks:
         return pd.DataFrame()
@@ -97,7 +102,7 @@ def retrieve_data_from_url(url, filing_date):
 
 def normalize_cusip(value):
     value = str(value).strip()
-    value = value.replace('V', '').replace('X', ' ')  # Clean up
+#    value = value.replace('V', '').replace('X', ' ')  # Clean up
     
     if ' ' in value:
         parts = value.split()
@@ -134,20 +139,20 @@ headers = {
     "Host": "www.sec.gov"
 }
 
-#txt_links = get_all_txt_links()
+txt_links = get_all_txt_links()
 
-#all_dfs = []
-#for url in txt_links:
-#    data = retrieve_data_from_url(url[1], url[0])
-#    if not data.empty:
-#        print(url[0] + '    ' + url[1])
-#        all_dfs.append(data)
+all_dfs = []
+for url in txt_links:
+    data = retrieve_data_from_url(url[1], url[0])
+    if not data.empty:
+        print(url[0] + '    ' + url[1])
+        all_dfs.append(data)
 
-#merged_df = pd.concat(all_dfs, ignore_index=True)
-#merged_df.iloc[:, 0] = merged_df.iloc[:, 0].apply(normalize_cusip)
+merged_df = pd.concat(all_dfs, ignore_index=True)
+merged_df.iloc[:, 0] = merged_df.iloc[:, 0].apply(normalize_cusip)
 
-merged_df = pd.read_csv("all_raw_data.csv")
-#merged_df.to_csv('all_raw_data.csv', index=False);
+#merged_df = pd.read_csv("all_raw_data.csv")
+merged_df.to_csv('all_raw_data.csv', index=False);
 
 merged_df.columns.values[0] = 'cupsid'
 merged_df.columns.values[1] = 'valuation'
