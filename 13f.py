@@ -62,7 +62,9 @@ def retrieve_data_from_url(url, filing_date):
     content = response.text
     
     # Find all <table>...</table> blocks, skipping the first one
-    table_blocks = re.findall(r'<TABLE>(?:(?!</TABLE>).)*?(?:<C>.*?){5,}.*?</TABLE>', content, re.DOTALL | re.IGNORECASE)
+    table_blocks = re.findall(r'<TABLE>.*?</TABLE>', content, re.DOTALL | re.IGNORECASE)
+    c_block_pattern = re.compile(r"(?:<C>(?:\s*<C>){4,})")
+    table_blocks = [block for block in table_blocks if c_block_pattern.search(block)]
 
     if not table_blocks:
         return pd.DataFrame()
@@ -139,7 +141,8 @@ headers = {
     "Host": "www.sec.gov"
 }
 
-txt_links = get_all_txt_links()
+#txt_links = get_all_txt_links()
+txt_links = [('2002-06-30','https://www.sec.gov/Archives/edgar/data/1067983/000095013407011675/a30064ue13fvhr.txt')]
 
 all_dfs = []
 for url in txt_links:
